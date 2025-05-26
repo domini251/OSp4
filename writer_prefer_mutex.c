@@ -367,6 +367,8 @@ char *img5[L5] = {
  */
 bool alive = true;
 pthread_mutex_t mutex = PTHREAD_MUTEX_INITIALIZER;
+pthread_mutex_t rmutex = PTHREAD_MUTEX_INITIALIZER;
+pthread_mutex_t wmutex = PTHREAD_MUTEX_INITIALIZER;
 pthread_mutex_t rw_lock = PTHREAD_MUTEX_INITIALIZER;
 int reader_count = 0;
 int writer_waiting = 0;
@@ -389,18 +391,14 @@ void *reader(void *arg)
      * 스레드가 살아 있는 동안 같은 문자열 시퀀스 <XXX...XX>를 반복해서 출력한다.
      */
     while (alive) {
+        // mutex로 reader 진입을 결정, rmutex는 reader의 중복을 허용하기 위해 사용한다. 
         pthread_mutex_lock(&mutex);
-        if(writer_waiting > 0) {   
-            // 다른 reader가 critical section에 있거나 writer가 대기 중이라면 대기한다.
-            pthread_mutex_unlock(&mutex);
-            continue;
-        }
-        
+        pthread_mutex_lock(&rmutex);
         reader_count++;
-        if(reader_count == 1) {
-            // reader가 처음 들어온다면 rw_lock을 획득한다.
+        if (reader_count == 1) {
             pthread_mutex_lock(&rw_lock);
         }
+        pthread_mutex_unlock(&rmutex);
         pthread_mutex_unlock(&mutex);
         /*
          * Begin Critical Section
@@ -412,12 +410,13 @@ void *reader(void *arg)
         /* 
          * End Critical Section
          */
-        pthread_mutex_lock(&mutex);
+        // critical section을 빠져나온 후 reader_count를 감소시키고, 만약 reader_count가 0이 되면 rw_lock을 해제한다.
+        pthread_mutex_lock(&rmutex);
         reader_count--;
         if (reader_count == 0) {
             pthread_mutex_unlock(&rw_lock);
         }
-        pthread_mutex_unlock(&mutex);
+        pthread_mutex_unlock(&rmutex);
     }
     pthread_exit(NULL);
 }
@@ -443,9 +442,13 @@ void *writer(void *arg)
      * 스레드가 살아 있는 동안 같은 이미지를 반복해서 출력한다.
      */
     while (alive) {
-        pthread_mutex_lock(&mutex);
+        // wmutex로 잠근 상태에서 writer_waiting을 늘려 꼬임을 방지하고 mutex락으로 reader의 실행 방지한다다. 이후 rw_Lock을 잠근 뒤 cs에 진입한다다. 
+        pthread_mutex_lock(&wmutex);
         writer_waiting++;
-        pthread_mutex_unlock(&mutex);
+        if( writer_waiting == 1) {
+            pthread_mutex_lock(&mutex);
+        }
+        pthread_mutex_unlock(&wmutex);
         pthread_mutex_lock(&rw_lock);
         /*
          * Begin Critical Section
@@ -478,8 +481,14 @@ void *writer(void *arg)
         /* 
          * End Critical Section
          */
-        writer_waiting--;
+        // critical section을 빠져나온 후 writer_waiting을 감소시키고, 만약 writer_waiting이 0이 되면 mutex를 해제한다.
         pthread_mutex_unlock(&rw_lock);
+        pthread_mutex_lock(&wmutex);
+        writer_waiting--;
+        if (writer_waiting == 0) {
+            pthread_mutex_unlock(&mutex);
+        }
+        pthread_mutex_unlock(&wmutex);
         /*
          * 이미지 출력 후 SLEEPTIME 나노초 안에서 랜덤하게 쉰다.
          */
