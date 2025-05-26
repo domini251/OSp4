@@ -1,2 +1,9 @@
 /.vscode
-/rw
+/frw
+/.idea
+/.DS_Store
+/.vscode-test
+/.vscode-test-*
+/wpc
+/wpm
+/rpc

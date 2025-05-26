@@ -366,6 +366,11 @@ char *img5[L5] = {
  * alive 값이 false가 되면 무한 루프를 빠져나와 스레드를 자연스럽게 종료한다.
  */
 bool alive = true;
+pthread_mutex_t mutex = PTHREAD_MUTEX_INITIALIZER;
+pthread_cond_t read_cond = PTHREAD_COND_INITIALIZER;
+pthread_cond_t write_cond = PTHREAD_COND_INITIALIZER;
+int reader_count = 0;
+int writer_waiting = 0;
 
 /*
  * Reader 스레드는 같은 문자를 L0번 출력한다. 예를 들면 <AAA...AA> 이런 식이다.
