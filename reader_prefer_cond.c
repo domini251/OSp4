@@ -389,18 +389,7 @@ void *reader(void *arg)
      */
     while (alive) {
         pthread_mutex_lock(&mutex);
-        if(!alive) {
-            pthread_cond_broadcast(&write_cond);
-            pthread_mutex_unlock(&mutex);
-            break;
-        }
         reader_count++;
-        // if (readers == 1) {
-        //     /*
-        //      * 첫 번째 reader가 critical section에 들어오면 writer를 기다리게 한다.
-        //      */
-        //     pthread_cond_wait(&write_cond, &mutex);
-        // }
         pthread_mutex_unlock(&mutex);
         /*
          * Begin Critical Section

@@ -367,8 +367,7 @@ char *img5[L5] = {
  */
 bool alive = true;
 pthread_mutex_t mutex = PTHREAD_MUTEX_INITIALIZER;
-pthread_cond_t read_cond = PTHREAD_COND_INITIALIZER;
-pthread_cond_t write_cond = PTHREAD_COND_INITIALIZER;
+pthread_mutex_t rw_lock = PTHREAD_MUTEX_INITIALIZER;
 int reader_count = 0;
 int writer_waiting = 0;
 
@@ -390,6 +389,19 @@ void *reader(void *arg)
      * 스레드가 살아 있는 동안 같은 문자열 시퀀스 <XXX...XX>를 반복해서 출력한다.
      */
     while (alive) {
+        pthread_mutex_lock(&mutex);
+        if(writer_waiting > 0) {   
+            // 다른 reader가 critical section에 있거나 writer가 대기 중이라면 대기한다.
+            pthread_mutex_unlock(&mutex);
+            continue;
+        }
+        
+        reader_count++;
+        if(reader_count == 1) {
+            // reader가 처음 들어온다면 rw_lock을 획득한다.
+            pthread_mutex_lock(&rw_lock);
+        }
+        pthread_mutex_unlock(&mutex);
         /*
          * Begin Critical Section
          */
@@ -400,6 +412,12 @@ void *reader(void *arg)
         /* 
          * End Critical Section
          */
+        pthread_mutex_lock(&mutex);
+        reader_count--;
+        if (reader_count == 0) {
+            pthread_mutex_unlock(&rw_lock);
+        }
+        pthread_mutex_unlock(&mutex);
     }
     pthread_exit(NULL);
 }
@@ -425,6 +443,10 @@ void *writer(void *arg)
      * 스레드가 살아 있는 동안 같은 이미지를 반복해서 출력한다.
      */
     while (alive) {
+        pthread_mutex_lock(&mutex);
+        writer_waiting++;
+        pthread_mutex_unlock(&mutex);
+        pthread_mutex_lock(&rw_lock);
         /*
          * Begin Critical Section
          */
@@ -456,6 +478,8 @@ void *writer(void *arg)
         /* 
          * End Critical Section
          */
+        writer_waiting--;
+        pthread_mutex_unlock(&rw_lock);
         /*
          * 이미지 출력 후 SLEEPTIME 나노초 안에서 랜덤하게 쉰다.
          */

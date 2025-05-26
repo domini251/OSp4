@@ -391,11 +391,6 @@ void *reader(void *arg)
      */
     while (alive) {
         pthread_mutex_lock(&mutex);
-        if(!alive) {
-            pthread_cond_broadcast(&read_cond);
-            pthread_mutex_unlock(&mutex);
-            break;
-        }
         while(writer_waiting > 0) {
             pthread_cond_wait(&read_cond, &mutex);
         }
@@ -417,7 +412,7 @@ void *reader(void *arg)
         if (reader_count == 0) {
             pthread_cond_signal(&write_cond);
         }
-        pthread_cond_broadcast(&read_cond);
+        pthread_cond_broadcast(&read_cond);//동시 진입을 위해.
         pthread_mutex_unlock(&mutex);
     }
     pthread_exit(NULL);
@@ -445,11 +440,6 @@ void *writer(void *arg)
      */
     while (alive) {
         pthread_mutex_lock(&mutex);
-        if(!alive) {
-            pthread_cond_broadcast(&write_cond);
-            pthread_mutex_unlock(&mutex);
-            break;
-        }
         writer_waiting++;
         while(reader_count > 0) {
             pthread_cond_wait(&write_cond, &mutex);
@@ -487,7 +477,7 @@ void *writer(void *arg)
          */
         writer_waiting--;
         if(writer_waiting == 0) {
-            pthread_cond_broadcast(&read_cond);
+            pthread_cond_signal(&read_cond);
         }
         pthread_cond_signal(&write_cond);
         pthread_mutex_unlock(&mutex);
