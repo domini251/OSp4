@@ -433,7 +433,7 @@ void *writer(void *arg)
     while (alive) {
         pthread_mutex_lock(&mutex);
         while(reader_count > 0) {
-            // 다른 reader가 critical section에 있다면 writer는 기다린다. 김동민 05/25/23:30
+            // 다른 writer나 reader가 critical section에 있다면 writer는 기다린다. 김동민 05/25/23:30
             pthread_cond_wait(&write_cond, &mutex);
         }
         /*
