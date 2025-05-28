@@ -366,9 +366,8 @@ char *img5[L5] = {
  * alive 값이 false가 되면 무한 루프를 빠져나와 스레드를 자연스럽게 종료한다.
  */
 bool alive = true;
-pthread_mutex_t mutex = PTHREAD_MUTEX_INITIALIZER;
+pthread_mutex_t turn_mutex = PTHREAD_MUTEX_INITIALIZER;
 pthread_mutex_t rmutex = PTHREAD_MUTEX_INITIALIZER;
-pthread_mutex_t wmutex = PTHREAD_MUTEX_INITIALIZER;
 pthread_mutex_t rw_lock = PTHREAD_MUTEX_INITIALIZER;
 int reader_count = 0;
 
@@ -390,15 +389,15 @@ void *reader(void *arg)
      * 스레드가 살아 있는 동안 같은 문자열 시퀀스 <XXX...XX>를 반복해서 출력한다.
      */
     while (alive) {
-        // 순서확정을 위한 mutex로 잠근 뒤, 첫번째 읽기 스레드라면 reader끼리 중복을 허용하기 위한 실행뮤텍스 wr_lock 락을 걸어주고 아니라면 mutex탈출. 김동민 05/27/03:30
-        pthread_mutex_lock(&mutex);
+        // 순서확정을 위한 turn_mutex로 잠근 뒤, 첫번째 읽기 스레드라면 reader끼리 중복을 허용하면서 writer와 베타적인 뮤텍스 wr_lock 락을 걸어주고, 아니라면 turn_mutex탈출. 김동민 05/27/03:30
+        pthread_mutex_lock(&turn_mutex);
         pthread_mutex_lock(&rmutex); // reader_count를 안전하게 증가시키기 위해 rmutex를 잠근다. 김동민 05/27/03:31
         reader_count++;
         if (reader_count == 1) {
             pthread_mutex_lock(&rw_lock); // 첫번째 reader가 들어오면 rw_lock을 잠근다. 김동민 05/27/03:32
         }
         pthread_mutex_unlock(&rmutex); // reader_count 증가 후 rmutex를 풀어준다. 김동민 05/27/03:33
-        pthread_mutex_unlock(&mutex);
+        pthread_mutex_unlock(&turn_mutex);
         /*
          * Begin Critical Section
          */
@@ -409,7 +408,7 @@ void *reader(void *arg)
         /* 
          * End Critical Section
          */
-        // 추가적인 잠금 없이 rmutex를 잠근 뒤, reader_count를 감소시키고, 만약 reader_count가 0이 되면 rw_lock을 푼다. 김동민 05/27/03:35
+        // 순서를 정하는데에는 관련 없으므로 바로 rmutex를 잠근 뒤, reader_count를 감소시키고, 만약 reader_count가 0이 되면 rw_lock을 푼다. 김동민 05/27/03:35
         pthread_mutex_lock(&rmutex);
         reader_count--;
         if (reader_count == 0) {
@@ -441,10 +440,10 @@ void *writer(void *arg)
      * 스레드가 살아 있는 동안 같은 이미지를 반복해서 출력한다.
      */
     while (alive) {
-        // 순서확정을 위한 mutex로 잠근 뒤, write작업의 독립성 보장을 위해 rw_lock 락을 걸어주고 아니라면 mutex탈출. 김동민 05/27/03:55
-        pthread_mutex_lock(&mutex);
+        // 순서확정을 위한 turn_mutex로 잠근 뒤, write작업의 독립성 보장을 위해 rw_lock 락을 걸어주고 아니라면 turn_mutex탈출. 김동민 05/27/03:55
+        pthread_mutex_lock(&turn_mutex);
         pthread_mutex_lock(&rw_lock); // rw_lock을 잠근다. 김동민 05/27/03:56
-        pthread_mutex_unlock(&mutex); // rw_lock을 잠근 후 다음 스레드가 순서를 기다릴 수 있도록 mutex를 푼다. 김동민 05/27/03:56
+        pthread_mutex_unlock(&turn_mutex); // rw_lock을 잠근 후 다음 스레드가 순서를 기다릴 수 있도록 turn_mutex를 푼다. 김동민 05/27/03:56
         /*
          * Begin Critical Section
          */
@@ -476,7 +475,7 @@ void *writer(void *arg)
         /* 
          * End Critical Section
          */
-        // writer의 실행이 완료되면 다음 순서로 대기중이던 스레드가 실행될 수 있도록 rw_lock을 풀어준다. 김동민 05/27/03:58
+        // writer의 실행이 완료되면 다음 순서로 대기중이던(turn_mutex를 가지고 있던) 스레드가 실행될 수 있도록 rw_lock을 풀어준다. 김동민 05/27/03:58
         pthread_mutex_unlock(&rw_lock); // rw_lock을 푼다. 김동민 05/27/03:58
         /*
          * 이미지 출력 후 SLEEPTIME 나노초 안에서 랜덤하게 쉰다.

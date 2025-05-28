@@ -412,7 +412,7 @@ void *reader(void *arg)
         if (reader_count == 0) {
             pthread_cond_signal(&write_cond);
         }
-        pthread_cond_broadcast(&read_cond);//동시 진입을 위해.
+        pthread_cond_broadcast(&read_cond);//동시 진입을 위해 read_cond를 broadcast. 
         pthread_mutex_unlock(&mutex);
     }
     pthread_exit(NULL);

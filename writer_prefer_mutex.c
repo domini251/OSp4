@@ -391,9 +391,9 @@ void *reader(void *arg)
      * 스레드가 살아 있는 동안 같은 문자열 시퀀스 <XXX...XX>를 반복해서 출력한다.
      */
     while (alive) {
-        // mutex로 reader 진입을 결정, rmutex는 reader의 중복을 허용하기 위해 사용한다. 
+        // mutex로 reader 진입을 결정. 김동민 05/26/19:59
         pthread_mutex_lock(&mutex);
-        pthread_mutex_lock(&rmutex);
+        pthread_mutex_lock(&rmutex); // 안전하게 reader_count를 증가시키고 rw_lock을 잠그기 위해 rmutex를 잠근다. 김동민 05/26/20:12
         reader_count++;
         if (reader_count == 1) {
             pthread_mutex_lock(&rw_lock);
@@ -410,7 +410,7 @@ void *reader(void *arg)
         /* 
          * End Critical Section
          */
-        // critical section을 빠져나온 후 reader_count를 감소시키고, 만약 reader_count가 0이 되면 rw_lock을 해제한다.
+        // critical section을 빠져나온 후 안전하게 reader_count를 감소시키고, 만약 reader_count가 0이 되면 rw_lock을 해제한다. 김동민 05/26/20:12
         pthread_mutex_lock(&rmutex);
         reader_count--;
         if (reader_count == 0) {
@@ -442,7 +442,7 @@ void *writer(void *arg)
      * 스레드가 살아 있는 동안 같은 이미지를 반복해서 출력한다.
      */
     while (alive) {
-        // wmutex로 잠근 상태에서 writer_waiting을 늘려 꼬임을 방지하고 mutex락으로 reader의 실행 방지한다다. 이후 rw_Lock을 잠근 뒤 cs에 진입한다다. 
+        // wmutex로 잠근 상태에서 writer_waiting을 늘려 꼬임을 방지하고 mutex락으로 reader의 실행 방지한다다. 이후 rw_Lock을 잠근 뒤 cs에 진입한다. 김동민 05/26/20:18
         pthread_mutex_lock(&wmutex);
         writer_waiting++;
         if( writer_waiting == 1) {
@@ -481,7 +481,7 @@ void *writer(void *arg)
         /* 
          * End Critical Section
          */
-        // critical section을 빠져나온 후 writer_waiting을 감소시키고, 만약 writer_waiting이 0이 되면 mutex를 해제한다.
+        // critical section을 빠져나온 후 writer_waiting을 감소시키고, 만약 writer_waiting이 0이 되면 mutex를 해제한다. 김동민 05/26/20:20
         pthread_mutex_unlock(&rw_lock);
         pthread_mutex_lock(&wmutex);
         writer_waiting--;
