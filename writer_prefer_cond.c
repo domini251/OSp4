@@ -476,10 +476,10 @@ void *writer(void *arg)
          * End Critical Section
          */
         writer_waiting--;
-        if(writer_waiting == 0) {
+        if(writer_waiting == 0) 
             pthread_cond_signal(&read_cond);
-        }
-        pthread_cond_signal(&write_cond);
+        else
+            pthread_cond_signal(&write_cond);
         pthread_mutex_unlock(&mutex);
         /*
          * 이미지 출력 후 SLEEPTIME 나노초 안에서 랜덤하게 쉰다.
